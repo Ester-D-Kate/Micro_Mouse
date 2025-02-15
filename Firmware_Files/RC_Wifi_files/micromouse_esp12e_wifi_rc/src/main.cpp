@@ -62,10 +62,10 @@ void setup() {
   Serial.begin(115200); // Start Serial Monitor
   WiFi.begin(ssid, password);
   
-  Serial.print("Connecting to WiFi...");
+  Serial.println("\nConnecting to WiFi...");
   while (WiFi.status() != WL_CONNECTED) { 
       delay(1000); 
-      Serial.print(".");
+      Serial.println("\n.");
   }
   
   Serial.println("\nConnected to WiFi!");
