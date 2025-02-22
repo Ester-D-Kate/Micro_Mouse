@@ -193,7 +193,7 @@ void setup() {
 
 
 void loop() {
-    sensors_event_t a, g, temp;
+  /*  sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
     unsigned long currentTime = millis();
@@ -217,4 +217,4 @@ void loop() {
     Serial.print(" | PID Output: "); Serial.println(output);
 
     delay(50);
-}
+*/}
