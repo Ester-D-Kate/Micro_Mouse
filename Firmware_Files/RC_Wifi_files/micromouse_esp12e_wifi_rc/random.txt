@@ -1,0 +1,23 @@
+
+
+
+
+
+void loop() {
+    // PID-based Motor Speed Adjustment
+    float error = desired_angle - angleZ;
+    integral += error;
+    float derivative = (error - previous_error);
+    float correction = (Kp * error) + (Ki * integral) + (Kd * derivative);
+    previous_error = error;
+
+    rightSpeedValue = constrain(125 + correction, 0, 255);
+    leftSpeedValue = constrain(125 - correction, 0, 255);
+
+    // Send formatted command ONLY
+    command = "<" + String(direction) + "," + String(rightSpeedValue) + "," + String(leftSpeedValue) + ",N,0>";
+    Serial.println(command);  // Arduino reads this
+
+    delay(50);
+}command = "<" + dir + "," + speed + "," + (dir == "L" || dir == "R" ? dir : "N") + "," + turn + ">";
+      

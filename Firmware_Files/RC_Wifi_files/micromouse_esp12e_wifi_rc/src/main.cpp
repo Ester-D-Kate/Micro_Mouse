@@ -15,6 +15,18 @@ WiFiClient client;
 String command = "<S,0,N,0>"; // Default command (Stopped)
 
 // Stores speed and turn intensity
+String dir = "S";
+String speed = "0";
+String turn = "N";
+
+
+bool isFDesiredAngleSet = false;
+bool isBDesiredAngleSet = false;
+bool isLDesiredAngleSet = false;
+bool isRDesiredAngleSet = false;
+bool isSDesiredAngleSet = false;
+int RightSpeedValue = 50;
+int LeftSpeedValue = 50;
 int speedValue = 50;
 int turnIntensity = 0;
 float angleZ = 0.0;  // Total rotated angle
@@ -51,12 +63,12 @@ const char webpage[] PROGMEM = R"rawliteral(
             <span id="speedValue">50</span>%
         </div>
     
-        <button class="btn" onclick="sendCommand('F')">Forward</button><br>
-        <button class="btn" onclick="sendCommand('L')">Left</button>
-        <button class="btn" onclick="sendCommand('S')">Stop</button>
-        <button class="btn" onclick="sendCommand('R')">Right</button><br>
-        <button class="btn" onclick="sendCommand('B')">Backward</button>
-    
+            <button class="btn" onpointerdown="sendCommand('F')" onpointerup="sendCommand('S')">  F  </button><br>
+            <button class="btn" onpointerdown="sendCommand('L')" onpointerup="sendCommand('S')">  L  </button>
+            <button class="btn" onpointerdown="sendCommand('S')" onpointerup="sendCommand('S')">  S  </button>
+            <button class="btn" onpointerdown="sendCommand('R')" onpointerup="sendCommand('S')">  R  </button><br>
+            <button class="btn" onpointerdown="sendCommand('B')" onpointerup="sendCommand('S')">  B  </button>
+
         <h3>PID Tuning</h3>
         <div class="slider-container">
             <label for="kpSlider">Kp:</label>
@@ -145,7 +157,7 @@ void setup() {
       String speed = request->getParam("speed")->value();
       String turn = request->getParam("turn")->value();
 
-      command = "<" + dir + "," + speed + "," + (dir == "L" || dir == "R" ? dir : "N") + "," + turn + ">";
+      command = "<" + dir + "," + speed + "," + (dir == "L" || dir == "R" ? dir : "N") + "," + speed + ">";
       Serial.println(command);
       request->send(200, "text/plain", "OK");
   });
@@ -193,7 +205,7 @@ void setup() {
 
 
 void loop() {
-  /*  sensors_event_t a, g, temp;
+    sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
 
     unsigned long currentTime = millis();
@@ -212,9 +224,51 @@ void loop() {
     float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
 
     previous_error = error;
+    if (command[1] == 'F' && !isFDesiredAngleSet) {
+        desired_angle = angleZ;  // Store the current angle as the reference
+        isFDesiredAngleSet = true;  // Prevent updating until another command appears
+        
+        Serial.print("Desired Angle Locked F: "); Serial.println(desired_angle);
+    }
+    if (command[1] == 'B' && !isBDesiredAngleSet) {
+        desired_angle = angleZ;  // Store the current angle as the reference
+        isBDesiredAngleSet = true;  // Prevent updating until another command appears
+        Serial.print("Desired Angle Locked B: "); Serial.println(desired_angle);
+    }
+    if (command[1] == 'L' && !isLDesiredAngleSet) {
+        desired_angle = angleZ;  // Store the current angle as the reference
+        isLDesiredAngleSet = true;  // Prevent updating until another command appears
+        Serial.print("Desired Angle Locked L: "); Serial.println(desired_angle);
+    }
+    if (command[1] == 'R' && !isRDesiredAngleSet) {
+        desired_angle = angleZ;  // Store the current angle as the reference
+        isRDesiredAngleSet = true;  // Prevent updating until another command appears
+        Serial.print("Desired Angle Locked R: "); Serial.println(desired_angle);
+    }
+    if (command[1] == 'S' && !isSDesiredAngleSet) {
+        desired_angle = angleZ;  // Store the current angle as the reference
+        isSDesiredAngleSet = true;  // Prevent updating until another command appears
+        Serial.print("Desired Angle Locked S: "); Serial.println(desired_angle);
+    }
 
-    Serial.print("AngleZ: "); Serial.print(angleZ);
-    Serial.print(" | PID Output: "); Serial.println(output);
+
+    //Serial.print("Angle: "); Serial.println(desired_angle);
+    // Reset the flag when a new direction (B, L, S, R) is received
+    if (command[1] != 'F') {
+        isFDesiredAngleSet = false;
+    }
+    if (command[1] != 'B') {
+        isBDesiredAngleSet = false;
+    }
+    if (command[1] != 'L') {
+        isLDesiredAngleSet = false;
+    }
+    if (command[1] != 'R') {
+        isRDesiredAngleSet = false;
+    }
+    if (command[1] != 'S') {
+        isSDesiredAngleSet = false;
+    }
 
     delay(50);
-*/}
+}
