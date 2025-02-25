@@ -25,6 +25,8 @@ bool isBDesiredAngleSet = false;
 bool isLDesiredAngleSet = false;
 bool isRDesiredAngleSet = false;
 bool isSDesiredAngleSet = false;
+
+int DegreeAngle = 0;
 int RightSpeedValue = 50;
 int LeftSpeedValue = 50;
 int speedValue = 50;
@@ -137,11 +139,11 @@ void setup() {
   Serial.begin(115200); // Start Serial Monitor
   while (!Serial);  // Wait for Serial Monitor to open
   WiFi.begin(ssid, password);
-  
-  Serial.println("\nConnecting to WiFi...");
+  Serial.println(" ");
+  Serial.print("Connecting to WiFi...");
   while (WiFi.status() != WL_CONNECTED) { 
       delay(1000); 
-      Serial.println("\n.");
+      Serial.print(".");
   }
   
   Serial.println("\nConnected to WiFi!");
@@ -214,45 +216,64 @@ void loop() {
 
     float gyroZ = g.gyro.z - gyroZOffset;  
     angleZ += gyroZ * dt;  // Integration of gyro value to get angle
+    
+    if(angleZ > 6.20) {
+        angleZ = 0;
+    }else if(angleZ < -6.20){
+        angleZ = 0;
+    } 
 
+    DegreeAngle=(angleZ/6.20)*360;
+
+    int RotationalAngle = DegreeAngle;
+    
+    if(DegreeAngle>179 ) {
+        RotationalAngle = DegreeAngle-360;
+    }else if(DegreeAngle<-179){
+        RotationalAngle = DegreeAngle+360;
+    }
+    
     // Calculate PID terms
-    float error = desired_angle - angleZ;
+    float error = desired_angle - RotationalAngle;
     integral += error * dt;
     float derivative = (error - previous_error) / dt;
     
     // PID output for controlling car
-    float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
+    float PidOutput = (Kp * error) + (Ki * integral) + (Kd * derivative);
+
+    //int outputPWM = map(PidOutput, -maxVal, maxVal, 0, 255);
+    //outputPWM = constrain(outputPWM, 0, 255);
 
     previous_error = error;
     if (command[1] == 'F' && !isFDesiredAngleSet) {
-        desired_angle = angleZ;  // Store the current angle as the reference
+        desired_angle = RotationalAngle;  // Store the current angle as the reference
         isFDesiredAngleSet = true;  // Prevent updating until another command appears
         
         Serial.print("Desired Angle Locked F: "); Serial.println(desired_angle);
     }
     if (command[1] == 'B' && !isBDesiredAngleSet) {
-        desired_angle = angleZ;  // Store the current angle as the reference
+        desired_angle = RotationalAngle;  // Store the current angle as the reference
         isBDesiredAngleSet = true;  // Prevent updating until another command appears
         Serial.print("Desired Angle Locked B: "); Serial.println(desired_angle);
     }
     if (command[1] == 'L' && !isLDesiredAngleSet) {
-        desired_angle = angleZ;  // Store the current angle as the reference
+        desired_angle = RotationalAngle;  // Store the current angle as the reference
         isLDesiredAngleSet = true;  // Prevent updating until another command appears
         Serial.print("Desired Angle Locked L: "); Serial.println(desired_angle);
     }
     if (command[1] == 'R' && !isRDesiredAngleSet) {
-        desired_angle = angleZ;  // Store the current angle as the reference
+        desired_angle = RotationalAngle;  // Store the current angle as the reference
         isRDesiredAngleSet = true;  // Prevent updating until another command appears
         Serial.print("Desired Angle Locked R: "); Serial.println(desired_angle);
     }
     if (command[1] == 'S' && !isSDesiredAngleSet) {
-        desired_angle = angleZ;  // Store the current angle as the reference
+        desired_angle = RotationalAngle;  // Store the current angle as the reference
         isSDesiredAngleSet = true;  // Prevent updating until another command appears
         Serial.print("Desired Angle Locked S: "); Serial.println(desired_angle);
     }
-
-
-    //Serial.print("Angle: "); Serial.println(desired_angle);
+    Serial.print("AngleZ: "); Serial.print(angleZ); Serial.print("  ");
+    Serial.print("Angle: "); Serial.print(RotationalAngle); Serial.print("  ");
+    Serial.print("Error: "); Serial.println(error);
     // Reset the flag when a new direction (B, L, S, R) is received
     if (command[1] != 'F') {
         isFDesiredAngleSet = false;
