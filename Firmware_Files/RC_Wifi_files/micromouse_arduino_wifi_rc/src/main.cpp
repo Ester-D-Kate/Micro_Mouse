@@ -1,4 +1,5 @@
 #include <Arduino.h>
+
 #define LEFT_MOTOR_FWD 8
 #define LEFT_MOTOR_BWD 9
 #define RIGHT_MOTOR_FWD 6
@@ -7,60 +8,56 @@
 #define PWM_RIGHT 5
 
 String inputData = "";
-int speedValue = 0;
-int turnIntensity = 0;
+int rightSpeedValue = 0; 
+int leftSpeedValue = 0; 
 char direction = 'S';
 char turnDir = 'N';
 
 void controlMotors() {
-  int leftSpeed = speedValue;
-  int rightSpeed = speedValue;
+  int leftSpeed = leftSpeedValue;
+  int rightSpeed = rightSpeedValue;
 
-  if (turnDir == 'L') rightSpeed -= turnIntensity;
-  if (turnDir == 'R') leftSpeed -= turnIntensity;
+switch (direction) {
+    case 'R': // Right
+        digitalWrite(LEFT_MOTOR_FWD, HIGH);
+        digitalWrite(LEFT_MOTOR_BWD, LOW);
+        digitalWrite(RIGHT_MOTOR_FWD, HIGH);
+        digitalWrite(RIGHT_MOTOR_BWD, LOW);
+        break;
+    case 'L': // Left
+        digitalWrite(LEFT_MOTOR_FWD, LOW);
+        digitalWrite(LEFT_MOTOR_BWD, HIGH);
+        digitalWrite(RIGHT_MOTOR_FWD, LOW);
+        digitalWrite(RIGHT_MOTOR_BWD, HIGH);
+        break;
+    case 'B': // Backward
+        digitalWrite(LEFT_MOTOR_FWD, LOW);
+        digitalWrite(LEFT_MOTOR_BWD, HIGH);
+        digitalWrite(RIGHT_MOTOR_FWD, HIGH);
+        digitalWrite(RIGHT_MOTOR_BWD, LOW);
+        break;
+    case 'F': // Forward
+        digitalWrite(LEFT_MOTOR_FWD, HIGH);
+        digitalWrite(LEFT_MOTOR_BWD, LOW);
+        digitalWrite(RIGHT_MOTOR_FWD, LOW);
+        digitalWrite(RIGHT_MOTOR_BWD, HIGH);
+        break;
+    case 'S': // Stop
+        digitalWrite(LEFT_MOTOR_FWD, LOW);
+        digitalWrite(LEFT_MOTOR_BWD, LOW);
+        digitalWrite(RIGHT_MOTOR_FWD, LOW);
+        digitalWrite(RIGHT_MOTOR_BWD, LOW);
+        break;
+}
 
-  if (leftSpeed < 30) leftSpeed = 30;
-  if (rightSpeed < 30) rightSpeed = 30;
-
-  switch (direction) {
-      case 'F':
-          digitalWrite(LEFT_MOTOR_FWD, HIGH);
-          digitalWrite(LEFT_MOTOR_BWD, LOW);
-          digitalWrite(RIGHT_MOTOR_FWD, HIGH);
-          digitalWrite(RIGHT_MOTOR_BWD, LOW);
-          break;
-      case 'B':
-          digitalWrite(LEFT_MOTOR_FWD, LOW);
-          digitalWrite(LEFT_MOTOR_BWD, HIGH);
-          digitalWrite(RIGHT_MOTOR_FWD, LOW);
-          digitalWrite(RIGHT_MOTOR_BWD, HIGH);
-          break;
-      case 'L':
-          digitalWrite(LEFT_MOTOR_FWD, LOW);
-          digitalWrite(LEFT_MOTOR_BWD, HIGH);
-          digitalWrite(RIGHT_MOTOR_FWD, HIGH);
-          digitalWrite(RIGHT_MOTOR_BWD, LOW);
-          break;
-      case 'R':
-          digitalWrite(LEFT_MOTOR_FWD, HIGH);
-          digitalWrite(LEFT_MOTOR_BWD, LOW);
-          digitalWrite(RIGHT_MOTOR_FWD, LOW);
-          digitalWrite(RIGHT_MOTOR_BWD, HIGH);
-          break;
-      case 'S':
-          digitalWrite(LEFT_MOTOR_FWD, LOW);
-          digitalWrite(LEFT_MOTOR_BWD, LOW);
-          digitalWrite(RIGHT_MOTOR_FWD, LOW);
-          digitalWrite(RIGHT_MOTOR_BWD, LOW);
-          break;
-  }
-
-  analogWrite(PWM_LEFT, leftSpeed * 2.55);
-  analogWrite(PWM_RIGHT, rightSpeed * 2.55);
+  // Apply PWM speed control
+  analogWrite(PWM_LEFT, leftSpeed);
+  analogWrite(PWM_RIGHT, rightSpeed);
 }
 
 void setup() {
     Serial.begin(115200);
+
     pinMode(LEFT_MOTOR_FWD, OUTPUT);
     pinMode(LEFT_MOTOR_BWD, OUTPUT);
     pinMode(RIGHT_MOTOR_FWD, OUTPUT);
@@ -71,13 +68,18 @@ void setup() {
 
 void loop() {
     if (Serial.available()) {
-        inputData = Serial.readStringUntil('\n');
+        inputData = Serial.readStringUntil('\n'); // Read command from ESP8266
 
         if (inputData.length() > 5) {
+            // Parse values from the command format: "<dir,rightSpeed,leftSpeed,N,0>"
             direction = inputData.charAt(1);
-            speedValue = inputData.substring(3, inputData.indexOf(',', 3)).toInt();
-            turnDir = inputData.charAt(inputData.indexOf(',', 3) + 1);
-            turnIntensity = inputData.substring(inputData.lastIndexOf(',') + 1).toInt();
+            int firstComma = inputData.indexOf(',');
+            int secondComma = inputData.indexOf(',', firstComma + 1);
+            int thirdComma = inputData.indexOf(',', secondComma + 1);
+
+            leftSpeedValue = inputData.substring(firstComma + 1, secondComma).toInt();
+            rightSpeedValue = inputData.substring(secondComma + 1, thirdComma).toInt();
+            turnDir = inputData.charAt(thirdComma + 1);
         }
     }
 
