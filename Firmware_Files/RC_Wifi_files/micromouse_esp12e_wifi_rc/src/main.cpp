@@ -37,7 +37,6 @@ int turnIntensity = 0;
 float angleZ = 0.0;  // Total rotated angle
 float gyroZOffset = 0.0;  // Will be calculated
 float dt=0.0089;
-float Tmax=0.85;
 float max_integral = 100;
 unsigned long prevTime = 0;  // Previous time
 
