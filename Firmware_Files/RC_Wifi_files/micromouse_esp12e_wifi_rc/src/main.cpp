@@ -12,7 +12,7 @@ Adafruit_MPU6050 mpu;
 AsyncWebServer server(80);
 WiFiClient client;
 
-String command = "<S,0,N,0>"; // Default command (Stopped)
+String command = "<S,0,0,N,0>"; // Default command (Stopped)
 
 // Stores speed and turn intensity
 String dir = "S";
@@ -26,13 +26,19 @@ bool isLDesiredAngleSet = false;
 bool isRDesiredAngleSet = false;
 bool isSDesiredAngleSet = false;
 
-int DegreeAngle = 0;
+
+int RightSpeed = 50;
+int LeftSpeed = 50;
 int RightSpeedValue = 50;
 int LeftSpeedValue = 50;
+int DegreeAngle = 0;
 int speedValue = 50;
 int turnIntensity = 0;
 float angleZ = 0.0;  // Total rotated angle
 float gyroZOffset = 0.0;  // Will be calculated
+float dt=0.0089;
+float Tmax=0.85;
+float max_integral = 100;
 unsigned long prevTime = 0;  // Previous time
 
 float Kp = 1.5;  // Proportional Gain
@@ -42,6 +48,9 @@ float Kd = 0.5;  // Derivative Gain
 float desired_angle = 0;  // Setpoint (desired angle)
 float integral = 0.0;
 float previous_error = 0.0;
+
+String RightSpeedValueCommand = String(RightSpeedValue);
+String LeftSpeedValueCommand = String(LeftSpeedValue);
 
 // Webpage (HTML + JS)
 const char webpage[] PROGMEM = R"rawliteral(
@@ -134,6 +143,23 @@ const char webpage[] PROGMEM = R"rawliteral(
     </html>
     )rawliteral";
     
+void resetPID() {
+    integral = 0;
+    previous_error = 0;
+}
+    
+float computePID(float setpoint, float current_value, float dt) {
+
+    float error = setpoint - current_value;
+    integral += error*dt; 
+    float derivative = (error - previous_error)/dt;
+
+    float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
+    
+    previous_error = error;
+    
+    return output;
+}
 
 void setup() {
   Serial.begin(115200); // Start Serial Monitor
@@ -157,9 +183,14 @@ void setup() {
   server.on("/move", HTTP_GET, [](AsyncWebServerRequest *request){
       String dir = request->getParam("dir")->value();
       String speed = request->getParam("speed")->value();
+      speedValue = speed.toInt();
+      RightSpeedValue = ((speedValue)*255)/100;
+      LeftSpeedValue = ((speedValue)*255)/100;
+      RightSpeedValueCommand = RightSpeedValue;
+      LeftSpeedValueCommand = LeftSpeedValue;
       String turn = request->getParam("turn")->value();
 
-      command = "<" + dir + "," + speed + "," + (dir == "L" || dir == "R" ? dir : "N") + "," + speed + ">";
+      command = "<" + dir + "," + LeftSpeedValueCommand + "," + RightSpeedValueCommand + "," + (dir == "L" || dir == "R" ? dir : "N") + "," + RightSpeedValueCommand + ">";
       Serial.println(command);
       request->send(200, "text/plain", "OK");
   });
@@ -203,9 +234,6 @@ void setup() {
   prevTime = millis();  // Initialize time
 }
 
-
-
-
 void loop() {
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
@@ -215,9 +243,9 @@ void loop() {
     prevTime = currentTime;
 
     float gyroZ = g.gyro.z - gyroZOffset;  
-    angleZ += gyroZ * dt;  // Integration of gyro value to get angle
-    
-    if(angleZ > 6.20) {
+    angleZ += gyroZ * dt;  
+
+    if(angleZ > 6.19) {
         angleZ = 0;
     }else if(angleZ < -6.20){
         angleZ = 0;
@@ -232,49 +260,53 @@ void loop() {
     }else if(DegreeAngle<-179){
         RotationalAngle = DegreeAngle+360;
     }
-    
-    // Calculate PID terms
-    float error = desired_angle - RotationalAngle;
-    integral += error * dt;
-    float derivative = (error - previous_error) / dt;
-    
-    // PID output for controlling car
-    float PidOutput = (Kp * error) + (Ki * integral) + (Kd * derivative);
 
-    //int outputPWM = map(PidOutput, -maxVal, maxVal, 0, 255);
-    //outputPWM = constrain(outputPWM, 0, 255);
-
-    previous_error = error;
-    if (command[1] == 'F' && !isFDesiredAngleSet) {
-        desired_angle = RotationalAngle;  // Store the current angle as the reference
-        isFDesiredAngleSet = true;  // Prevent updating until another command appears
-        
-        Serial.print("Desired Angle Locked F: "); Serial.println(desired_angle);
+    float PidOutput = computePID(desired_angle, RotationalAngle, dt);
+  
+    if (command[1] == 'F') {
+        if (!isFDesiredAngleSet) { 
+            desired_angle = RotationalAngle;  // Set desired angle ONCE 
+            resetPID(); // Reset PID values
+            isFDesiredAngleSet = true;
+        } 
+        RightSpeed =  constrain(RightSpeedValue + PidOutput,0,255);
+        LeftSpeed= constrain(LeftSpeedValue - PidOutput,0,255);            
+        RightSpeedValueCommand = String(RightSpeed);
+        LeftSpeedValueCommand = String(LeftSpeed);
+        command="<F,"+LeftSpeedValueCommand+","+RightSpeedValueCommand+",N,"+RightSpeedValueCommand+">";
+    
     }
-    if (command[1] == 'B' && !isBDesiredAngleSet) {
-        desired_angle = RotationalAngle;  // Store the current angle as the reference
-        isBDesiredAngleSet = true;  // Prevent updating until another command appears
-        Serial.print("Desired Angle Locked B: "); Serial.println(desired_angle);
+    if (command[1] == 'B') {
+        if (!isBDesiredAngleSet) { 
+            desired_angle = RotationalAngle;  // Set desired angle ONCE
+            resetPID(); // Reset PID values
+            isBDesiredAngleSet = true;  
+        } 
+        RightSpeed =  constrain(RightSpeedValue - PidOutput,0,255);
+        LeftSpeed= constrain(LeftSpeedValue + PidOutput,0,255);            
+        RightSpeedValueCommand = String(RightSpeed);
+        LeftSpeedValueCommand = String(LeftSpeed);
+        command="<B,"+LeftSpeedValueCommand+","+RightSpeedValueCommand+",N,"+RightSpeedValueCommand+">";
     }
     if (command[1] == 'L' && !isLDesiredAngleSet) {
-        desired_angle = RotationalAngle;  // Store the current angle as the reference
-        isLDesiredAngleSet = true;  // Prevent updating until another command appears
+        desired_angle = RotationalAngle;  
+        resetPID(); // Reset PID values
+        isLDesiredAngleSet = true; 
         Serial.print("Desired Angle Locked L: "); Serial.println(desired_angle);
     }
     if (command[1] == 'R' && !isRDesiredAngleSet) {
-        desired_angle = RotationalAngle;  // Store the current angle as the reference
-        isRDesiredAngleSet = true;  // Prevent updating until another command appears
+        desired_angle = RotationalAngle; 
+        resetPID(); // Reset PID values
+        isRDesiredAngleSet = true;  
         Serial.print("Desired Angle Locked R: "); Serial.println(desired_angle);
     }
     if (command[1] == 'S' && !isSDesiredAngleSet) {
-        desired_angle = RotationalAngle;  // Store the current angle as the reference
-        isSDesiredAngleSet = true;  // Prevent updating until another command appears
+        desired_angle = RotationalAngle;  
+        resetPID(); // Reset PID values
+        isSDesiredAngleSet = true; 
         Serial.print("Desired Angle Locked S: "); Serial.println(desired_angle);
     }
-    Serial.print("AngleZ: "); Serial.print(angleZ); Serial.print("  ");
-    Serial.print("Angle: "); Serial.print(RotationalAngle); Serial.print("  ");
-    Serial.print("Error: "); Serial.println(error);
-    // Reset the flag when a new direction (B, L, S, R) is received
+
     if (command[1] != 'F') {
         isFDesiredAngleSet = false;
     }
@@ -290,6 +322,5 @@ void loop() {
     if (command[1] != 'S') {
         isSDesiredAngleSet = false;
     }
-
-    delay(50);
+    Serial.println(command);
 }
