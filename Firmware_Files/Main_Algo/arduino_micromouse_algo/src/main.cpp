@@ -120,18 +120,7 @@ void loop() {
 
     irLeftValue = analogRead(IR_LEFT); 
     irRightValue = analogRead(IR_RIGHT);
-    if(irLeftValue > 720) {
-        irLeftValue = 1;
-    }else if(irLeftValue < 700) {
-        irLeftValue = 0;
-    }
-    if(irRightValue > 720) {
-        irRightValue = 1;
-    }else if(irRightValue < 700) {
-        irRightValue = 0;
-    }
-
-
+    
     command = "<" + String(DisFront) + "," + String(DisLeftDiagnal) + "," + String(DisRightDiagnal) + "," + 
           String(leftCount) + "," + String(rightCount) + "," + 
           String(irLeftValue) + "," + String(irRightValue) + ">";
