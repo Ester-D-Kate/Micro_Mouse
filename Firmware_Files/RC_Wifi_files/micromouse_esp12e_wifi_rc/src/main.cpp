@@ -161,7 +161,7 @@ float computePID(float setpoint, float current_value, float dt) {
 }
 
 void setup() {
-  Serial.begin(115200); // Start Serial Monitor
+  Serial.begin(57600); // Start Serial Monitor
   while (!Serial);  // Wait for Serial Monitor to open
   WiFi.begin(ssid, password);
   Serial.println(" ");
