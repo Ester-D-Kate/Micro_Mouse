@@ -34,9 +34,11 @@ int irRightValue = 0;
 String command = "<0,0,0,0,0,0,0>";
 String inputData = "";
 int rightSpeedValue = 0; 
+int DisFront = 0;
+int DisFront1 = 0;
 int leftSpeedValue = 0; 
 char direction = 'S';
-char turnDir = 'N';
+int  isRotation = 0;
 
 NewPing SonarFront(trigPinFront, echoPinFront, MAX_DISTANCE);
 NewPing SonarRight(trigPinRight, echoPinRight, MAX_DISTANCE);
@@ -48,30 +50,40 @@ void controlMotors() {
 
 switch (direction) {
     case 'R': // Right
+        analogWrite(PWM_LEFT, leftSpeed);
+        analogWrite(PWM_RIGHT, rightSpeed);
         digitalWrite(LEFT_MOTOR_FWD, HIGH);
         digitalWrite(LEFT_MOTOR_BWD, LOW);
         digitalWrite(RIGHT_MOTOR_FWD, HIGH);
         digitalWrite(RIGHT_MOTOR_BWD, LOW);
         break;
     case 'L': // Left
+        analogWrite(PWM_LEFT, leftSpeed);
+        analogWrite(PWM_RIGHT, rightSpeed);
         digitalWrite(LEFT_MOTOR_FWD, LOW);
         digitalWrite(LEFT_MOTOR_BWD, HIGH);
         digitalWrite(RIGHT_MOTOR_FWD, LOW);
         digitalWrite(RIGHT_MOTOR_BWD, HIGH);
         break;
     case 'B': // Backward
+        analogWrite(PWM_LEFT, leftSpeed);
+        analogWrite(PWM_RIGHT, rightSpeed);
         digitalWrite(LEFT_MOTOR_FWD, LOW);
         digitalWrite(LEFT_MOTOR_BWD, HIGH);
         digitalWrite(RIGHT_MOTOR_FWD, HIGH);
         digitalWrite(RIGHT_MOTOR_BWD, LOW);
         break;
     case 'F': // Forward
+        analogWrite(PWM_LEFT, leftSpeed);
+        analogWrite(PWM_RIGHT, rightSpeed);
         digitalWrite(LEFT_MOTOR_FWD, HIGH);
         digitalWrite(LEFT_MOTOR_BWD, LOW);
         digitalWrite(RIGHT_MOTOR_FWD, LOW);
         digitalWrite(RIGHT_MOTOR_BWD, HIGH);
         break;
     case 'S': // Stop
+        analogWrite(PWM_LEFT, leftSpeed);
+        analogWrite(PWM_RIGHT, rightSpeed);    
         digitalWrite(LEFT_MOTOR_FWD, LOW);
         digitalWrite(LEFT_MOTOR_BWD, LOW);
         digitalWrite(RIGHT_MOTOR_FWD, LOW);
@@ -79,9 +91,7 @@ switch (direction) {
         break;
 }
 
-  // Apply PWM speed control
-  analogWrite(PWM_LEFT, leftSpeed);
-  analogWrite(PWM_RIGHT, rightSpeed);
+
 }
 
 void setup() {
@@ -100,7 +110,7 @@ void setup() {
 
 void loop() {
     
-    int DisFront = SonarFront.ping_cm();
+    DisFront = SonarFront.ping_cm();
     int DisRightDiagnal = SonarRight.ping_cm();
     int DisLeftDiagnal = SonarLeft.ping_cm();
     if (DisFront == 0) DisFront = MAX_DISTANCE;
@@ -113,7 +123,7 @@ void loop() {
         rightCount++; 
     }  
     if (leftLastState == LOW && leftCurrentState == HIGH) {
-        leftCount++; // Increment left count
+        leftCount++; 
     }
     rightLastState = rightCurrentState;
     leftLastState = leftCurrentState;
@@ -135,7 +145,7 @@ void loop() {
 
         if (len > 5) {
             direction = inputBuffer[1];
-            sscanf(inputBuffer, "<%*c,%d,%d,%c", &leftSpeedValue, &rightSpeedValue, &turnDir);
+            sscanf(inputBuffer, "<%*c,%d,%d,%d", &leftSpeedValue, &rightSpeedValue, &isRotation);
         }
     }
 

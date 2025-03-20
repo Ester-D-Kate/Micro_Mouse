@@ -8,24 +8,30 @@ Adafruit_MPU6050 mpu;
 
 char inputBuffer[50];
 float DisFront, DisLeftHorizontal, DisRightHorizontal, 
-    leftCount, rightCount, irLeftValue, irRightValue;
+      leftCount, rightCount, irLeftValue, irRightValue;
 const float correctionFactor = 0.707; 
 int currentHorizontalDistance = DisLeftHorizontal;
 float referenceWallDistance = 0.0;
 float currentWallDistance = 0.0;
+int RotationalAngle = 0;
 char referenceWallSide = 'N'; 
 bool isCalibrated = false;
+bool isRotating = false; 
 int count = 0;
 
-String wall_Detection = "XXX";
+String wall_Detection = "XXXX";
 
 float angleZ = 0.0;
+float angleZ1 = 0.0;
 float gyroZOffset = 0.0;
 float DegreeAngle = 0;
+float DegreeAngle1 = 0;
 unsigned long prevTime = 0;
 
 float Kp = 1.5, Ki = 0.01, Kd = 0.5;
+float Kpg = 1, Kig = 0.01, Kdg = 0.2;
 float integral = 0.0, gyroIntegral=0.0, previous_error = 0.0 , previous_gyro_error = 0.0;
+float initialAngle = 0.11111;
 float desired_angle = 0;  
 float dt = 0.0089;  
 
@@ -38,6 +44,8 @@ float LeftSpeed = 120;
 float RightSpeed1 = 120;
 float LeftSpeed1 = 120;
 char turnDir = 'N';
+char BotDir = 'F';
+char BotDir1 = 'F';
 
 void resetPID() {
   integral = 0;
@@ -62,7 +70,7 @@ float computeGyroPID(float setpoint, float current_value, float dt) {
   float error = (((setpoint - current_value)/1023)*150);
   //gyroIntegral += error * dt;
   float derivative = (error - previous_error) / dt;
-  float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
+  float output = (Kpg * error) + (Kig * integral) + (Kdg * derivative);
   previous_gyro_error = error;
   return output;
 }
@@ -96,10 +104,27 @@ void readFromArduino() {
 
     // Now parse
     if (inputBuffer[0] == '<' && inputBuffer[len - 1] == '>') {
+      float tempDisFront, tempDisLeftHorizontal, tempDisRightHorizontal;
+      float tempLeftCount, tempRightCount;
+      float tempIrLeftValue, tempIrRightValue;
+
       int extracted = sscanf(inputBuffer, "<%f,%f,%f,%f,%f,%f,%f>",
-                             &DisFront, &DisLeftHorizontal, &DisRightHorizontal,
-                             &leftCount, &rightCount,
-                             &irLeftValue, &irRightValue);
+                             &tempDisFront, &tempDisLeftHorizontal, &tempDisRightHorizontal,
+                             &tempLeftCount, &tempRightCount,
+                             &tempIrLeftValue, &tempIrRightValue);
+
+      if (extracted == 7) {
+        // Update all values except DisFront if isRotating is true
+        if (!isRotating) {
+          DisFront = tempDisFront;
+        }
+        DisLeftHorizontal = tempDisLeftHorizontal;
+        DisRightHorizontal = tempDisRightHorizontal;
+        leftCount = tempLeftCount;
+        rightCount = tempRightCount;
+        irLeftValue = tempIrLeftValue;
+        irRightValue = tempIrRightValue;
+      }
     }
   }
 }
@@ -111,7 +136,7 @@ void sendStartCommandToArduino() {
 
 void sendCommandToArduino() {
   command = "<" + String(direction) + "," + String(leftSpeedValue) + "," + String(rightSpeedValue) + 
-  " , " + String(referenceWallDistance) + "," +String(DisFront)+" , "+String(desired_angle)+","+String(DegreeAngle)+">";
+  "," + String(isRotating) + "," + String(DisFront) + ">";
   Serial.println(command); 
 }
 
@@ -124,9 +149,37 @@ void updateGyro() {
   mpu.getEvent(&a, &g, &temp);
   float gyroZ = g.gyro.z - gyroZOffset;
   angleZ += gyroZ * dt;
-
+  angleZ1 += gyroZ * dt;
   // No reset, keep angle continuous
+  if(angleZ1 > 6.19) {
+    angleZ1 = 0;
+  }else if(angleZ1 < -6.20){
+    angleZ1 = 0;
+  }
+
   DegreeAngle = (angleZ / 6.20) * 360;
+  
+  DegreeAngle1 = (angleZ1 / 6.20) * 360;
+
+  RotationalAngle = DegreeAngle1;
+
+  if(DegreeAngle1>179 ) {
+      RotationalAngle = DegreeAngle1-360;
+  }else if(DegreeAngle1<-179){
+      RotationalAngle = DegreeAngle1+360;
+  }
+}
+
+void botDirection(){
+  if(RotationalAngle >= -45 && RotationalAngle < 44){
+    BotDir = 'F';
+  }else if(RotationalAngle >= 44 && RotationalAngle < 134){
+    BotDir = 'L';
+  }else if(RotationalAngle >= 134 && RotationalAngle < 179 || RotationalAngle < -134 && RotationalAngle >= -180){
+    BotDir = 'B';
+  }else if(RotationalAngle <= -45 && RotationalAngle >= -134){
+    BotDir = 'R';
+  }
 }
 
 void calibrateWallDistance() {
@@ -150,6 +203,7 @@ void calibrateWallDistance() {
 
 void makeDecision() {
   if (DisFront > 16 && irLeftValue < 750 && irRightValue < 750) {
+    wall_Detection = "XLRX";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;  
@@ -160,6 +214,7 @@ void makeDecision() {
   } 
   
   else if (DisFront > 16 && irLeftValue < 750 && irRightValue > 1000) {
+    wall_Detection = "XLXX";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;  
@@ -170,6 +225,7 @@ void makeDecision() {
   } 
   
   else if (DisFront > 16 && irRightValue < 750 && irLeftValue > 1000) {
+    wall_Detection = "XXRX";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120; 
@@ -180,16 +236,35 @@ void makeDecision() {
   } 
   
   else if(DisFront > 16 && irLeftValue > 1000 && irRightValue > 1000){
-    desired_angle = DegreeAngle;
+    wall_Detection = "XXXX";
+    float RotationalAngle1 = RotationalAngle;
+    if(BotDir=='F'){
+      desired_angle = 0;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='L'){
+      desired_angle = 90;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='R'){
+      desired_angle = -90;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='B'){
+      desired_angle = -180;
+      if(RotationalAngle > 0){
+        RotationalAngle1 = RotationalAngle-360;
+      }else if(RotationalAngle < 0){
+        RotationalAngle1 = RotationalAngle;
+      }
+    }
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed= 120;
-    float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
+    float correction = computeGyroPID(desired_angle,RotationalAngle1, dt);
     leftSpeedValue = constrain(LeftSpeed - correction,0,255);
     rightSpeedValue = constrain(RightSpeed + correction,0,255);
   } 
   
   else if (DisFront < 16 && DisFront > 4 && irLeftValue < 750 && irRightValue < 750) {
+    wall_Detection = "XLRN";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;
@@ -202,6 +277,7 @@ void makeDecision() {
   } 
   
   else if (DisFront < 16 && DisFront > 4 && irLeftValue < 750 && irRightValue > 1000) {
+    wall_Detection = "XLXN";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;
@@ -214,6 +290,7 @@ void makeDecision() {
   } 
   
   else if (DisFront < 16 && DisFront > 4 && irRightValue < 750 && irLeftValue > 1000) {
+    wall_Detection = "XXRN";
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;
@@ -226,55 +303,121 @@ void makeDecision() {
   } 
   
   else if (DisFront < 16 && DisFront > 4 && irLeftValue > 1000 && irRightValue > 1000) {
-    desired_angle = DegreeAngle;
+    wall_Detection = "XXXN";
+    float RotationalAngle1 = RotationalAngle;
+    if(BotDir=='F'){
+      desired_angle = 0;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='L'){
+      desired_angle = 90;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='R'){
+      desired_angle = -90;
+      RotationalAngle1 = RotationalAngle;
+    }else if(BotDir=='B'){
+      desired_angle = -180;
+      if(RotationalAngle > 0){
+        RotationalAngle1 = RotationalAngle-360;
+      }else if(RotationalAngle < 0){
+        RotationalAngle1 = RotationalAngle;
+      }
+    }
     direction = 'F';
     LeftSpeed = 120;
     RightSpeed = 120;
     LeftSpeed1 = LeftSpeed-(LeftSpeed-((DisFront/16)*LeftSpeed));
     RightSpeed1 = RightSpeed-(RightSpeed-((DisFront/16)*RightSpeed));
-    float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
+    float correction = computeGyroPID(desired_angle,RotationalAngle1, dt);
     leftSpeedValue = constrain(LeftSpeed1 - correction,0,255);  
     rightSpeedValue = constrain(RightSpeed1 + correction,0,255);
   } 
   
-  else if (DisFront < 4 && irLeftValue > 1000 && irRightValue > 1000){
-    desired_angle = DegreeAngle + 90;
-    direction = 'F';
-    LeftSpeed = 0;
-    RightSpeed = 120;
+  else if (DisFront < 4 && irLeftValue > 1000 && irRightValue > 1000) {
+    wall_Detection = "FXXN";  
+    direction = 'F';           
+    if (initialAngle == 0.11111) {
+        initialAngle = DegreeAngle; 
+      }
+    desired_angle = initialAngle - 90;
+    LeftSpeed = 0;  
+    RightSpeed = 0;  
     float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
-    leftSpeedValue = LeftSpeed;
-    rightSpeedValue = constrain(RightSpeed - correction,0,255);
-  } 
+    leftSpeedValue = constrain(LeftSpeed - correction, 0, 255); 
+    rightSpeedValue = constrain(RightSpeed + correction, 0, 255); 
+    if (!isRotating) {
+        isRotating = true; 
+      }
+    if (abs(DegreeAngle - desired_angle) < 5.0) {  
+      isRotating = false;
+      initialAngle = 0.11111; 
+      }
+    }    
   
   else if (DisFront < 4 && irLeftValue > 1000 && irRightValue < 750){
-    desired_angle = DegreeAngle + 90;
+    wall_Detection = "FXRN";
     direction = 'F';
+    if (initialAngle == 0.11111) {
+      initialAngle = DegreeAngle; 
+    }
+    desired_angle = initialAngle + 90;
     LeftSpeed = 0;
-    RightSpeed = 120;
+    RightSpeed = 0;
     float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
-    leftSpeedValue = LeftSpeed;
-    rightSpeedValue = constrain(RightSpeed - correction,0,255);
+    leftSpeedValue = constrain(LeftSpeed - correction, 0, 255); 
+    rightSpeedValue = constrain(RightSpeed + correction,0,255);
+    if (!isRotating) {
+      isRotating = true; 
+    }
+
+  if (abs(DegreeAngle - desired_angle) < 5.0) {  
+    isRotating = false;
+    initialAngle = 0.11111; 
+    }
   } 
   
   else if (DisFront < 4 && irRightValue > 1000 && irLeftValue < 750){
-    desired_angle = DegreeAngle - 90;
+    wall_Detection = "FLXN";
+    if (initialAngle == 0.11111) {
+      initialAngle = DegreeAngle; 
+    }
+    desired_angle = initialAngle - 90;
     direction = 'F';
-    LeftSpeed = 120;
+    LeftSpeed = 0;
     RightSpeed = 0;
     float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
-    leftSpeedValue = constrain(LeftSpeed + correction,0,255);
-    rightSpeedValue = RightSpeed;
+    leftSpeedValue = constrain(LeftSpeed - correction,0,255);
+    rightSpeedValue = constrain(RightSpeed + correction,0,255);
+    if (!isRotating) {
+      isRotating = true; 
+    }
+
+    if (abs(DegreeAngle - desired_angle) < 5.0) {  
+      isRotating = false;
+      initialAngle = 0.11111; 
+    }
   } 
   
   else if (DisFront < 4 && irLeftValue < 750 && irRightValue < 750){
-    desired_angle = DegreeAngle - 180;
+    wall_Detection = "FLRN";
+    if (initialAngle == 0.11111) {
+      initialAngle = DegreeAngle; 
+    }
+
+    desired_angle = initialAngle - 180;
     direction = 'R';
-    LeftSpeed = 120; 
-    RightSpeed = 120;
+    LeftSpeed = 10; 
+    RightSpeed = 10;
     float correction = computeGyroPID(desired_angle, DegreeAngle, dt);
-    leftSpeedValue = constrain(LeftSpeed + correction,0,255);
+    leftSpeedValue = constrain(LeftSpeed - correction,0,255);
     rightSpeedValue = constrain(RightSpeed - correction,0,255);
+    if (!isRotating) {
+      isRotating = true; 
+    }
+
+    if (abs(DegreeAngle - desired_angle) < 5.0) {  
+      isRotating = false;
+      initialAngle = 0.11111; 
+    }
   }
 }
 
@@ -311,6 +454,8 @@ void setup() {
 
 void loop() {
   updateGyro();
+  
+  botDirection();
 
   readFromArduino();
  
